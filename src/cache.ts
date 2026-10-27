@@ -5,6 +5,9 @@ export interface CacheOptions {
   maxEntries?: number;
   retries?: number;
   retryDelayMs?: number;
+  backoffFactor?: number;
+  maxRetryDelayMs?: number;
+  jitter?: boolean;
 }
 
 interface CacheEntry<T> {
@@ -22,12 +25,18 @@ export class RequestCache {
   private maxEntries: number;
   private retries: number;
   private retryDelayMs: number;
+  private backoffFactor: number;
+  private maxRetryDelayMs: number;
+  private jitter: boolean;
 
   constructor(options: CacheOptions = {}) {
     this.ttlMs = options.ttlMs ?? 5 * 60 * 1000;
     this.maxEntries = options.maxEntries ?? 500;
     this.retries = options.retries ?? 0;
     this.retryDelayMs = options.retryDelayMs ?? 200;
+    this.backoffFactor = options.backoffFactor ?? 1;
+    this.maxRetryDelayMs = options.maxRetryDelayMs ?? 10_000;
+    this.jitter = options.jitter ?? false;
   }
 
   get size(): number {
@@ -76,6 +85,12 @@ export class RequestCache {
     }
   }
 
+  private computeDelay(attempt: number): number {
+    const raw = this.retryDelayMs * Math.pow(this.backoffFactor, attempt);
+    const capped = Math.min(raw, this.maxRetryDelayMs);
+    return this.jitter ? Math.random() * capped : capped;
+  }
+
   private async runWithRetry<T>(fetcher: Fetcher<T>): Promise<T> {
     let lastError: unknown;
     for (let attempt = 0; attempt <= this.retries; attempt++) {
@@ -83,7 +98,7 @@ export class RequestCache {
         return await fetcher();
       } catch (err) {
         lastError = err;
-        if (attempt < this.retries) await sleep(this.retryDelayMs);
+        if (attempt < this.retries) await sleep(this.computeDelay(attempt));
       }
     }
     throw lastError;

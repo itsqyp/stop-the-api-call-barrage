@@ -2,6 +2,96 @@ import { describe, it, expect, vi } from "vitest";
 import { RequestCache } from "../src/cache.js";
 
 describe("RequestCache", () => {
+  it("waits with exponential backoff between retries", async () => {
+    vi.useFakeTimers();
+    const cache = new RequestCache({
+      retries: 3,
+      retryDelayMs: 100,
+      backoffFactor: 2,
+    });
+    const fetcher = vi
+      .fn<() => Promise<string>>()
+      .mockRejectedValueOnce(new Error("1"))
+      .mockRejectedValueOnce(new Error("2"))
+      .mockRejectedValueOnce(new Error("3"))
+      .mockResolvedValueOnce("ok");
+
+    const promise = cache.fetch("a", fetcher);
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(99); // before 1st delay (100)
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(199); // before 2nd delay (200)
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetcher).toHaveBeenCalledTimes(3);
+
+    await vi.advanceTimersByTimeAsync(399); // before 3rd delay (400)
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetcher).toHaveBeenCalledTimes(4);
+
+    await expect(promise).resolves.toBe("ok");
+    vi.useRealTimers();
+  });
+
+  it("caps the delay at maxRetryDelayMs", async () => {
+    vi.useFakeTimers();
+    const cache = new RequestCache({
+      retries: 2,
+      retryDelayMs: 100,
+      backoffFactor: 10,
+      maxRetryDelayMs: 150,
+    });
+    const fetcher = vi
+      .fn<() => Promise<string>>()
+      .mockRejectedValueOnce(new Error("1"))
+      .mockRejectedValueOnce(new Error("2"))
+      .mockResolvedValueOnce("ok");
+
+    const promise = cache.fetch("a", fetcher);
+
+    await vi.advanceTimersByTimeAsync(100); // 1st delay: 100
+    expect(fetcher).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(149); // 2nd delay: 1000 capped to 150
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetcher).toHaveBeenCalledTimes(3);
+
+    await expect(promise).resolves.toBe("ok");
+    vi.useRealTimers();
+  });
+
+  it("applies jitter: delay is random()*computed", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const cache = new RequestCache({
+      retries: 1,
+      retryDelayMs: 100,
+      jitter: true,
+    });
+    const fetcher = vi
+      .fn<() => Promise<string>>()
+      .mockRejectedValueOnce(new Error("1"))
+      .mockResolvedValueOnce("ok");
+
+    const promise = cache.fetch("a", fetcher);
+
+    await vi.advanceTimersByTimeAsync(49); // 0.5 * 100 = 50
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+
+    await expect(promise).resolves.toBe("ok");
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
   it("evicts the least recently used entry when over maxEntries", async () => {
     const cache = new RequestCache({ ttlMs: 1000, maxEntries: 2 });
     const fetcher = vi.fn(async () => "data");
