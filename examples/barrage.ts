@@ -6,7 +6,7 @@ const spots = [
   [40.71, -74.01],
   [35.68, 139.69],
 ] as const;
-
+//Massive Barrage of api calls
 const calls = Array.from({ length: 50 }, (_, i) => {
   const [lat, lon] = spots[i % spots.length]!;
   return fetch(`${base}/weather?lat=${lat}&lon=${lon}`).then((r) => r.status);
