@@ -10,7 +10,31 @@ describe("loadConfig", () => {
       cacheMaxEntries: 500,
       batchWindowMs: 10,
       retries: 2,
+      apiKeys: [],
+      rateLimitMax: 60,
+      rateLimitWindowMs: 60000,
     });
+  });
+
+  it("parses API_KEYS, trimming spaces and dropping empty entries", () => {
+    const config = loadConfig({
+      API_KEYS: " aaaaaaaaaaaaaaaa , ,bbbbbbbbbbbbbbbb,",
+    });
+    expect(config.apiKeys).toEqual(["aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbb"]);
+  });
+
+  it("rejects short keys without echoing them", () => {
+    expect(() => loadConfig({ API_KEYS: "secret123" })).toThrow("API_KEYS");
+    expect(() => loadConfig({ API_KEYS: "secret123" })).not.toThrow(
+      "secret123",
+    );
+  });
+
+  it("validates rate limit settings", () => {
+    expect(() =>
+      loadConfig({ RATE_LIMIT_MAX: "10", RATE_LIMIT_WINDOW_MS: "0" }),
+    ).toThrow("RATE_LIMIT_WINDOW_MS");
+    expect(loadConfig({ RATE_LIMIT_MAX: "0" }).rateLimitMax).toBe(0);
   });
 
   it("reads overrides from env", () => {
