@@ -10,6 +10,9 @@ services:
       CACHE_MAX_ENTRIES: "500"
       BATCH_WINDOW_MS: "10"
       RETRIES: "2"
+      API_KEYS: "${API_KEYS:?Set API_KEYS in .env}"
+      RATE_LIMIT_MAX: "${RATE_LIMIT_MAX:-60}"
+      RATE_LIMIT_WINDOW_MS: "${RATE_LIMIT_WINDOW_MS:-60000}"
     init: true
     restart: unless-stopped
     read_only: true

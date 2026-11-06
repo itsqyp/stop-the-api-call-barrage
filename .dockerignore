@@ -9,3 +9,5 @@ docker-compose.yml
 .dockerignore
 npm-debug.log
 coverage
+.env
+.env.example
