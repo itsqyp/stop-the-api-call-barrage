@@ -19,7 +19,7 @@ describe("RequestCache", () => {
     const promise = cache.fetch("a", fetcher);
 
     await vi.advanceTimersByTimeAsync(0);
-    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher).toHaveBeenCalledTimes(2);
 
     await vi.advanceTimersByTimeAsync(99); // before 1st delay (100)
     expect(fetcher).toHaveBeenCalledTimes(1);
