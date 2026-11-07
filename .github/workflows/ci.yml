@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run build
+      - run: npm test
+
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: test
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build image
+        run: docker build -t stop-the-api-call-barrages:ci .
+
+      - name: Smoke test
+        run: |
+          set -eu
+          KEY=$(openssl rand -hex 32)
+          docker run -d --name proxy -p 3000:3000 \
+            --read-only --cap-drop ALL \
+            -e API_KEYS="$KEY" \
+            stop-the-api-call-barrages:ci
+
+          ok=0
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:3000/health > /dev/null; then ok=1; break; fi
+            sleep 1
+          done
+          [ "$ok" -eq 1 ] || { echo "health check never passed"; exit 1; }
+
+          code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:3000/weather?lat=1&lon=2")
+          [ "$code" = "401" ] || { echo "expected 401 without a key, got $code"; exit 1; }
+
+      - name: Container logs on failure
+        if: failure()
+        run: docker logs proxy || true
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f proxy || true

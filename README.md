@@ -1,5 +1,7 @@
 # Stop The API Call Barrages
 
+![CI](https://github.com/itsqyp/stop-the-api-call-barrage/actions/workflows/ci.yml/badge.svg)
+
 A small TypeScript package and proxy service that stops many callers from hitting the same external API at once. It is built around the Open-Meteo weather API.
 
 When many components ask for the same data at the same time, this project:
