@@ -234,7 +234,7 @@ npm run build      compile src to dist
 
 ## Roadmap
 
-- CORS support
+- Server-side callers only. CORS headers are intentionally not included. Browser pages must not call the proxy directly, because an API key in browser code is visible to every visitor. Call it from a backend you control.
 - GitHub Actions workflow running tests and the Docker build
 
 ## License
